@@ -3,10 +3,9 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
-from app.services.auth_service import register_user, login_user, get_current_user
+from app.services.auth_service import register_user, login_user
 from app.schemas.user import UserRegister
 from app.core.security import create_access_token
-from app.services.conversation_service import get_or_create_first_conversation, get_user_conversations
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -66,15 +65,14 @@ async def register_post(
 @router.get("/chat", response_class=HTMLResponse)
 async def chat_page(request: Request, db: AsyncSession = Depends(get_db)):
     token = request.cookies.get("token")
-    print(f"TOKEN: {token}")  # добави това временно
-
     if not token:
-        print("НЯМ ТОКЕН")
         return RedirectResponse(url="/auth/login")
+
+    from app.services.auth_service import get_current_user
+    from app.services.conversation_service import get_or_create_first_conversation, get_user_conversations
 
     try:
         user = await get_current_user(token, db)
-        print(f"USER: {user.email}")
         conversations = await get_user_conversations(user.id, db)
         if not conversations:
             first = await get_or_create_first_conversation(user.id, db)
@@ -87,10 +85,8 @@ async def chat_page(request: Request, db: AsyncSession = Depends(get_db)):
             "active_conversation": conversations[0],
             "max_conversations": 3
         })
-    except Exception as e:
-        print(f"ГРЕШКА В CHAT: {e}")  # добави това
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        return RedirectResponse(url="/auth/login")
 
 
 @router.post("/auth/logout")

@@ -1,23 +1,16 @@
 from fastapi import APIRouter, Depends, Request, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
+from app.api.v1.dependencies import get_current_user_flexible
 from app.core.database import get_db
-from app.services.auth_service import get_current_user
 from app.models.conversation import Conversation
 from app.schemas.conversation import MessageIn, MessageOut
 from app.agent.runner import run_agent
-import json
 from fastapi import UploadFile, File
 
 router = APIRouter(prefix="/chat", tags=["chat"])
-
-
-def get_token(request: Request) -> str:
-    token = request.cookies.get("token")
-    if not token:
-        raise HTTPException(status_code=401, detail="Не си влязъл")
-    return token
 
 
 async def get_conversation_for_user(
@@ -39,11 +32,9 @@ async def get_conversation_for_user(
 @router.get("/{conversation_id}/messages", response_model=list[MessageOut])
 async def get_messages(
     conversation_id: str,
-    request: Request,
+    user=Depends(get_current_user_flexible),
     db: AsyncSession = Depends(get_db)
 ):
-    token = get_token(request)
-    user = await get_current_user(token, db)
     conv = await get_conversation_for_user(conversation_id, user.id, db)
     return conv.messages or []
 
@@ -51,21 +42,17 @@ async def get_messages(
 @router.post("/send")
 async def send_message(
     body: MessageIn,
-    request: Request,
+    user=Depends(get_current_user_flexible),
     db: AsyncSession = Depends(get_db)
 ):
-    token = get_token(request)
-    user = await get_current_user(token, db)
     conv = await get_conversation_for_user(str(body.conversation_id), user.id, db)
 
-    # Блокирай ако вече се обработва
     if conv.is_processing:
         raise HTTPException(
             status_code=429,
             detail="Изчакай отговора преди да пратиш ново съобщение."
         )
 
-    # Маркирай като зает
     conv.is_processing = True
     await db.commit()
 
@@ -79,7 +66,7 @@ async def send_message(
             user_message=body.content,
             conversation_history=history,
             user_id=str(user.id),
-            conversation_id=str(body.conversation_id)  # добави това
+            conversation_id=str(body.conversation_id)
         )
 
         messages = list(conv.messages or [])
@@ -94,7 +81,6 @@ async def send_message(
             conv.title = title
 
     finally:
-        # Винаги освобождавай — дори при грешка
         conv.is_processing = False
         await db.commit()
 
@@ -104,16 +90,13 @@ async def send_message(
     }
 
 
-
 @router.post("/upload/{conversation_id}")
 async def upload_document(
     conversation_id: str,
-    request: Request,
     file: UploadFile = File(...),
+    user=Depends(get_current_user_flexible),
     db: AsyncSession = Depends(get_db)
 ):
-    token = get_token(request)
-    user = await get_current_user(token, db)
     await get_conversation_for_user(conversation_id, user.id, db)
 
     if file.size > 15 * 1024 * 1024:
