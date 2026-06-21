@@ -1,3 +1,5 @@
+import time
+
 import ollama
 from app.agent.system_prompt import SYSTEM_PROMPT
 from app.agent.guardrails import (
@@ -6,11 +8,12 @@ from app.agent.guardrails import (
     is_leaking_system_data,
     BLOCKED_RESPONSE,
 )
+import logging
 from app.agent.tools.registry import AVAILABLE_FUNCTIONS, TOOL_DEFINITIONS
 from app.core.config import settings
 
 MAX_STEPS = 10
-
+logger = logging.getLogger(__name__)
 
 async def run_agent(user_message: str, conversation_history: list, user_id: str, conversation_id: str = None) -> str:
     """
@@ -36,11 +39,17 @@ async def run_agent(user_message: str, conversation_history: list, user_id: str,
     client = ollama.Client(host=settings.OLLAMA_BASE_URL)
 
     for step in range(MAX_STEPS):
+        logger.info(f"[Agent] Стъпка {step + 1} — изпращам към Ollama")
+        start = time.time()
+
         response = client.chat(
             model=settings.OLLAMA_MODEL,
             messages=messages,
             tools=TOOL_DEFINITIONS,
         )
+
+        elapsed = time.time() - start
+        logger.info(f"[Agent] Ollama отговори за {elapsed:.1f}s")
 
         message = response["message"]
 
@@ -54,6 +63,7 @@ async def run_agent(user_message: str, conversation_history: list, user_id: str,
             if is_leaking_system_data(final):
                 return BLOCKED_RESPONSE
 
+            logger.info(f"[Agent] Финален отговор след {elapsed:.1f}s")
             return final
 
         # Има tool calls — изпълни ги
@@ -62,6 +72,8 @@ async def run_agent(user_message: str, conversation_history: list, user_id: str,
         for tool_call in message["tool_calls"]:
             fn_name = tool_call["function"]["name"]
             fn_args = tool_call["function"]["arguments"]
+
+            logger.info(f"[Agent] Извиква tool: {fn_name} с args: {fn_args}")
 
             fn = AVAILABLE_FUNCTIONS.get(fn_name)
             if not fn:
@@ -76,6 +88,8 @@ async def run_agent(user_message: str, conversation_history: list, user_id: str,
                         result = fn(**fn_args, user_id=user_id, conversation_id=conversation_id)
                 except Exception as e:
                     result = f"Грешка при изпълнение: {str(e)}"
+
+            logger.info(f"[Agent] Tool {fn_name} върна: {result[:100]}")
 
             messages.append({
                 "role": "tool",
