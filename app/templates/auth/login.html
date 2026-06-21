@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход — AI Test Helper</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="card">
+    <h1>Добре дошъл</h1>
+    <p class="subtitle">Влез в своя акаунт</p>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/auth/login">
+        <div class="form-group">
+            <label>Имейл</label>
+            <input type="email" name="email" placeholder="тебе@example.com" required>
+        </div>
+        <div class="form-group">
+            <label>Парола</label>
+            <input type="password" name="password" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn">Влез</button>
+    </form>
+
+    <div class="link-row">
+        Нямаш акаунт? <a href="/auth/register">Регистрирай се</a>
+    </div>
+</div>
+</body>
+</html>

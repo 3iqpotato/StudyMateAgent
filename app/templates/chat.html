@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Test Helper</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body style="display:block; padding:0;">
+<div class="chat-layout">
+    <div class="sidebar">
+        <div class="logo">AI Test Helper</div>
+
+        {% if conversations|length < max_conversations %}
+        <button class="new-chat-btn" onclick="newConversation()">+ Нов разговор</button>
+        {% else %}
+        <button class="new-chat-btn" disabled style="opacity:0.5;cursor:not-allowed;">
+            Максимум {{ max_conversations }} разговора
+        </button>
+        {% endif %}
+
+{% for conv in conversations %}
+<div class="chat-item {% if conv.id == active_conversation.id %}active{% endif %}"
+     id="conv-{{ conv.id }}"
+     onclick="loadConversation('{{ conv.id }}', this)">
+    <span class="conv-title">{{ conv.title }}</span>
+    <div class="conv-actions">
+        <button onclick="event.stopPropagation(); renameConv('{{ conv.id }}', '{{ conv.title }}')" title="Преименувай">✏️</button>
+        <button onclick="event.stopPropagation(); deleteConv('{{ conv.id }}')" title="Изтрий">🗑️</button>
+    </div>
+</div>
+{% endfor %}
+        <div style="margin-top:auto; padding-top:1rem;">
+            <div style="font-size:0.8rem; color:#666; margin-bottom:0.5rem;">
+                {{ user.name }}
+            </div>
+            <form method="post" action="/auth/logout" style="margin:0">
+                <button class="logout-btn">Изход</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="chat-main">
+        <div class="chat-header">
+            <span id="chat-title">{{ active_conversation.title }}</span>
+            <span style="font-size:0.8rem; color:#666;">
+                {{ conversations|length }}/{{ max_conversations }} разговора
+            </span>
+        </div>
+        <div class="chat-messages" id="messages">
+            <div class="message ai">
+                <div class="bubble">Здравей, {{ user.name }}! Как мога да помогна?</div>
+            </div>
+        </div>
+        <div class="chat-input-area">
+            <textarea id="input" placeholder="Напиши съобщение... (Enter за изпращане)" rows="1"></textarea>
+            <button class="send-btn" onclick="sendMessage()">Изпрати</button>
+            <label for="file-upload" style="cursor:pointer; padding:0.7rem; background:#1a1a24; border:1px solid #2a2a3a; border-radius:10px; color:#aaa;" title="Качи документ">
+    📎
+</label>
+<input id="file-upload" type="file" accept=".pdf,.docx,.txt" style="display:none" onchange="uploadFile(this)">
+        </div>
+    </div>
+</div>
+
+<script>
+let activeConversationId = "{{ active_conversation.id }}";
+const input = document.getElementById('input');
+const messages = document.getElementById('messages');
+
+// Зареди съобщенията при старт
+loadMessages(activeConversationId);
+
+input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+});
+
+async function loadMessages(id) {
+    activeConversationId = id;
+    messages.innerHTML = '';
+
+    const res = await fetch(`/api/v1/chat/${id}/messages`);
+    if (!res.ok) return;
+
+    const data = await res.json();
+
+    if (data.length === 0) {
+        addMessage('Здравей! Как мога да помогна?', 'ai');
+        return;
+    }
+
+    data.forEach(m => addMessage(m.content, m.role === 'user' ? 'user' : 'ai'));
+}
+
+async function loadConversation(id, el) {
+    document.querySelectorAll('.chat-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('chat-title').textContent = el.querySelector('.conv-title').textContent;
+    await loadMessages(id);
+}
+
+async function newConversation() {
+    const res = await fetch('/api/v1/conversations/', { method: 'POST' });
+    if (res.ok) window.location.reload();
+    else {
+        const data = await res.json();
+        alert(data.detail);
+    }
+}
+
+let isProcessing = false;
+
+function setProcessing(state) {
+    isProcessing = state;
+    input.disabled = state;
+    document.querySelector('.send-btn').disabled = state;
+    document.querySelector('.send-btn').style.opacity = state ? '0.5' : '1';
+    input.placeholder = state
+        ? 'Изчакай отговора...'
+        : 'Напиши съобщение... (Enter за изпращане)';
+}
+
+async function sendMessage() {
+    if (isProcessing) return;
+    const text = input.value.trim();
+    if (!text) return;
+
+    setProcessing(true);
+    addMessage(text, 'user');
+    input.value = '';
+    input.style.height = 'auto';
+
+    const thinkingId = 'thinking-' + Date.now();
+    addThinking(thinkingId);
+
+    try {
+        const res = await fetch('/api/v1/chat/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                content: text,
+                conversation_id: activeConversationId
+            })
+        });
+
+        removeThinking(thinkingId);
+
+        if (res.status === 429) {
+            addMessage('Изчакай отговора преди да пратиш ново съобщение.', 'ai');
+            return;
+        }
+
+        if (!res.ok) {
+            addMessage('Грешка при изпращане. Опитай отново.', 'ai');
+            return;
+        }
+
+        const data = await res.json();
+        addMessage(data.response, 'ai');
+
+        if (data.conversation_title) {
+            const titleEl = document.querySelector(`#conv-${activeConversationId} .conv-title`);
+            if (titleEl) titleEl.textContent = data.conversation_title;
+            document.getElementById('chat-title').textContent = data.conversation_title;
+        }
+
+    } catch (e) {
+        removeThinking(thinkingId);
+        addMessage('Грешка при връзката. Опитай отново.', 'ai');
+    } finally {
+        setProcessing(false);
+    }
+}
+
+function addMessage(text, role) {
+    const div = document.createElement('div');
+    div.className = `message ${role}`;
+    div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+}
+
+function addThinking(id) {
+    const div = document.createElement('div');
+    div.className = 'message ai';
+    div.id = id;
+    div.innerHTML = `<div class="bubble thinking">
+        <span></span><span></span><span></span>
+    </div>`;
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+}
+
+function removeThinking(id) {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+}
+
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\n/g, "<br>");
+}
+
+async function deleteConv(id) {
+    if (!confirm('Изтриване на разговора?')) return;
+    const res = await fetch(`/api/v1/conversations/${id}`, { method: 'DELETE' });
+    if (res.ok) window.location.reload();
+}
+
+async function renameConv(id, currentTitle) {
+    const newTitle = prompt('Ново име:', currentTitle);
+    if (!newTitle || newTitle.trim() === currentTitle) return;
+    const res = await fetch(`/api/v1/conversations/${id}/rename`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle.trim() })
+    });
+    if (res.ok) {
+        document.querySelector(`#conv-${id} .conv-title`).textContent = newTitle.trim();
+        if (activeConversationId === id) {
+            document.getElementById('chat-title').textContent = newTitle.trim();
+        }
+    }
+}
+
+async function uploadFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    addMessage(`📎 Качвам "${file.name}"...`, 'ai');
+
+    const res = await fetch(`/api/v1/chat/upload/${activeConversationId}`, {
+        method: 'POST',
+        body: formData
+    });
+
+    if (res.ok) {
+        const data = await res.json();
+        addMessage(`✅ "${data.filename}" е качен успешно (${data.chunks} части). Сега можеш да задаваш въпроси по него!`, 'ai');
+    } else {
+        const err = await res.json();
+        addMessage(`❌ Грешка: ${err.detail}`, 'ai');
+    }
+
+    input.value = '';
+}
+</script>
+</body>
+</html>
