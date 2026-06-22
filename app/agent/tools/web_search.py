@@ -101,6 +101,8 @@ async def fetch_webpage(
     site: str = None,
     topic: str = None,
     url: str = None,
+    conversation_id: str = None,
+    user_id: str = None,
     **kwargs
 ) -> str:
 
@@ -160,6 +162,21 @@ async def fetch_webpage(
 
         if len(text) > MAX_CONTENT_LENGTH:
             text = text[:MAX_CONTENT_LENGTH] + "... [съкратено]"
+
+        if conversation_id and user_id and len(text) > 100:
+            try:
+                from app.services.document_service import store_document
+                source_name = site or (url or final_url).split("/")[-1] or "webpage"
+                filename = f"{source_name}.txt"
+                await store_document(
+                    file_bytes=text.encode("utf-8"),
+                    filename=filename,
+                    conversation_id=conversation_id,
+                    user_id=user_id
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Не успя да запише в ChromaDB: {e}")
 
         return text
 

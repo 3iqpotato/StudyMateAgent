@@ -12,7 +12,8 @@ import logging
 from app.agent.tools.registry import AVAILABLE_FUNCTIONS, TOOL_DEFINITIONS
 from app.core.config import settings
 
-MAX_STEPS = 10
+MAX_STEPS = 15
+
 logger = logging.getLogger(__name__)
 
 async def run_agent(user_message: str, conversation_history: list, user_id: str, conversation_id: str = None) -> str:
@@ -37,6 +38,7 @@ async def run_agent(user_message: str, conversation_history: list, user_id: str,
                ]
 
     client = ollama.Client(host=settings.OLLAMA_BASE_URL)
+    empty_responses = 0
 
     for step in range(MAX_STEPS):
         logger.info(f"[Agent] Стъпка {step + 1} — изпращам към Ollama")
@@ -57,8 +59,16 @@ async def run_agent(user_message: str, conversation_history: list, user_id: str,
         if not message.get("tool_calls"):
             final = message.get("content", "").strip()
 
-            if not final:  # добави това
-                continue  # ако е празно — продължи към следващата стъпка
+            if not final:
+                empty_responses += 1
+                logger.warning(f"[Agent] Празен отговор #{empty_responses}")
+                if empty_responses >= 3:  # след 3 празни отговора — спри
+                    return "Не успях да формулирам отговор. Опитай с по-конкретен въпрос."
+                messages.append({
+                    "role": "user",
+                    "content": "Моля дай финален отговор на базата на информацията която вече имаш."
+                })
+                continue
 
             if is_leaking_system_data(final):
                 return BLOCKED_RESPONSE
@@ -67,6 +77,7 @@ async def run_agent(user_message: str, conversation_history: list, user_id: str,
             return final
 
         # Има tool calls — изпълни ги
+        empty_responses = 0
         messages.append(message)
 
         for tool_call in message["tool_calls"]:
