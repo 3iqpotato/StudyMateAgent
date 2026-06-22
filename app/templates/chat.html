@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Test Helper</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 </head>
 <body style="display:block; padding:0;">
 <div class="chat-layout">
@@ -183,7 +184,13 @@ async function sendMessage() {
 function addMessage(text, role) {
     const div = document.createElement('div');
     div.className = `message ${role}`;
-    div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+
+    if (role === 'ai') {
+        div.innerHTML = `<div class="bubble markdown-body">${marked.parse(text)}</div>`;
+    } else {
+        div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+    }
+
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
 }
