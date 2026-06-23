@@ -101,7 +101,7 @@ PostgreSQL    ChromaDB       Ollama
 ### 1. Клонирай проекта
 
 ```bash
-git clone https://github.com/твоето-username/ai-test-helper.git
+git clone https://github.com/3iqpotato/ai-test-helper.git
 cd ai-test-helper
 ```
 
