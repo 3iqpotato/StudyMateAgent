@@ -324,3 +324,37 @@ body {
     padding: 0.4rem 0.8rem;
     color: #aaa;
 }
+
+
+#file-preview {
+    padding: 0.35rem 1rem;
+    background: #12121c;
+    border-top: 1px solid #2a2a3a;
+    color: #888;
+    font-size: 0.8rem;
+}
+
+#file-preview {
+    padding: 0.35rem 1rem;
+    background: #12121c;
+    border-top: 1px solid #2a2a3a;
+    color: #888;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#file-preview button {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0 0.2rem;
+    line-height: 1;
+}
+
+#file-preview button:hover {
+    color: #ccc;
+}
