@@ -2,6 +2,8 @@ from fastapi import APIRouter, Request, Form, Depends
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.brute_force import check_brute_force, record_failed_attempt, record_success
 from app.core.database import get_db
 from app.services.auth_service import register_user, login_user
 from app.schemas.user import UserRegister
@@ -23,12 +25,15 @@ async def login_post(
     password: str = Form(...),
     db: AsyncSession = Depends(get_db)
 ):
+    check_brute_force(request.client.host)
     try:
         token = await login_user(email, password, db)
+        record_success(request.client.host)
         response = RedirectResponse(url="/chat", status_code=302)
         response.set_cookie("token", token, httponly=True)
         return response
     except Exception as e:
+        record_failed_attempt(request.client.host)
         return templates.TemplateResponse("auth/login.html", {
             "request": request,
             "error": "Грешен имейл или парола"

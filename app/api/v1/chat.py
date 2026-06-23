@@ -7,6 +7,7 @@ from sqlalchemy import select
 from pathlib import Path
 from app.api.v1.dependencies import get_current_user_flexible
 from app.core.database import get_db
+from app.core.rate_limiter import limiter
 from app.models.conversation import Conversation
 from app.schemas.conversation import MessageIn, MessageOut
 from app.agent.runner import run_agent
@@ -42,7 +43,9 @@ async def get_messages(
 
 
 @router.post("/send")
+@limiter.limit("20/minute")
 async def send_message(
+    request: Request,
     body: MessageIn,
     user=Depends(get_current_user_flexible),
     db: AsyncSession = Depends(get_db)
@@ -93,7 +96,9 @@ async def send_message(
 
 
 @router.post("/upload/{conversation_id}")
+@limiter.limit("2/minute")
 async def upload_document(
+    request: Request,
     conversation_id: str,
     file: UploadFile = File(...),
     user=Depends(get_current_user_flexible),
@@ -129,7 +134,9 @@ ALLOWED_IMAGE_TYPES = {
 }
 
 @router.post("/image/{conversation_id}")
+@limiter.limit("2/minute")
 async def send_image(
+    request: Request,
     conversation_id: str,
     file: UploadFile = File(...),
     prompt: str = Form(

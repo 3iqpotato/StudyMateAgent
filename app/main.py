@@ -16,10 +16,28 @@ from app.api.web import router as web_router
 from app.core.config import settings
 from app.models import user, conversation
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from app.core.rate_limiter import limiter, rate_limit_exceeded_handler
+from app.core.security_headers import SecurityHeadersMiddleware
 app = FastAPI(
     title=settings.APP_NAME,
     debug=settings.DEBUG,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
 )
+
+# Rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+# Security headers
+app.add_middleware(SecurityHeadersMiddleware)
+
+
+
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
