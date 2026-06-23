@@ -56,10 +56,13 @@
         <div class="chat-input-area">
             <textarea id="input" placeholder="Напиши съобщение... (Enter за изпращане)" rows="1"></textarea>
             <button class="send-btn" onclick="sendMessage()">Изпрати</button>
-            <label for="file-upload" style="cursor:pointer; padding:0.7rem; background:#1a1a24; border:1px solid #2a2a3a; border-radius:10px; color:#aaa;" title="Качи документ">
+<label for="file-upload" style="cursor:pointer; padding:0.7rem; background:#1a1a24; border:1px solid #2a2a3a; border-radius:10px; color:#aaa;" title="Качи документ или снимка">
     📎
 </label>
-<input id="file-upload" type="file" accept=".pdf,.docx,.txt" style="display:none" onchange="uploadFile(this)">
+<input id="file-upload" type="file"
+       accept=".pdf,.docx,.txt,image/jpeg,image/png,image/webp,image/gif"
+       style="display:none"
+       onchange="uploadFile(this)">
         </div>
     </div>
 </div>
@@ -245,25 +248,59 @@ async function uploadFile(input) {
     const file = input.files[0];
     if (!file) return;
 
+    const isImage = file.type.startsWith('image/');
     const formData = new FormData();
     formData.append('file', file);
 
-    addMessage(`📎 Качвам "${file.name}"...`, 'ai');
-
-    const res = await fetch(`/api/v1/chat/upload/${activeConversationId}`, {
-        method: 'POST',
-        body: formData
-    });
-
-    if (res.ok) {
-        const data = await res.json();
-        addMessage(`✅ "${data.filename}" е качен успешно (${data.chunks} части). Сега можеш да задаваш въпроси по него!`, 'ai');
-    } else {
-        const err = await res.json();
-        addMessage(`❌ Грешка: ${err.detail}`, 'ai');
+    if (isImage) {
+        // Вземи текущия текст от input-а като prompt
+        const userPrompt = document.getElementById('input').value.trim() ||
+            'Извлечи текста от снимката. Ако има въпроси — отговори на тях.';
+        formData.append('prompt', userPrompt);
+        document.getElementById('input').value = '';
     }
 
-    input.value = '';
+    setProcessing(true);
+    addMessage(isImage ? `📷 Анализирам снимка "${file.name}"...` : `📎 Качвам "${file.name}"...`, 'ai');
+
+    const endpoint = isImage
+        ? `/api/v1/chat/image/${activeConversationId}`
+        : `/api/v1/chat/upload/${activeConversationId}`;
+
+    const thinkingId = 'thinking-' + Date.now();
+    if (isImage) addThinking(thinkingId);
+
+    try {
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (isImage) removeThinking(thinkingId);
+
+        if (res.ok) {
+            const data = await res.json();
+            if (isImage) {
+                addMessage(data.response, 'ai');
+            } else {
+                addMessage(`✅ "${data.filename}" е качен (${data.chunks} части). Сега можеш да задаваш въпроси по него!`, 'ai');
+            }
+            if (data.conversation_title) {
+                const titleEl = document.querySelector(`#conv-${activeConversationId} .conv-title`);
+                if (titleEl) titleEl.textContent = data.conversation_title;
+                document.getElementById('chat-title').textContent = data.conversation_title;
+            }
+        } else {
+            const err = await res.json();
+            addMessage(`❌ Грешка: ${err.detail}`, 'ai');
+        }
+    } catch (e) {
+        if (isImage) removeThinking(thinkingId);
+        addMessage('❌ Грешка при качването.', 'ai');
+    } finally {
+        setProcessing(false);
+        input.value = '';
+    }
 }
 </script>
 </body>

@@ -10,6 +10,8 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
     restart:  "no"
+#    networks:
+#      - ollama_network   # ← за ollama
 
   postgres:
     image: postgres:16-alpine
@@ -28,6 +30,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+
   chromadb:
       image: chromadb/chroma:latest
       container_name: chromadb
@@ -36,3 +40,8 @@ services:
       volumes:
         - D:/docker-volumes/chromadb:/chroma/chroma
       restart:  "no"
+
+#networks:
+#  ollama_network:
+#    external: true
+#    name: ollama_network
