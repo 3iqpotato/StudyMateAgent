@@ -3,6 +3,7 @@ from app.agent.tools.telegram import send_telegram, TOOL_DEFINITION as TG_DEF
 from app.agent.tools.memory import search_memory, TOOL_DEFINITION as MEM_DEF
 from app.agent.tools.weather import get_weather, TOOL_DEFINITION as WEATHER_DEF
 from app.agent.tools.web_search import fetch_webpage, TOOL_DEFINITION as WEB_DEF
+from app.agent.tools.search_recipes import search_recipe, TOOL_DEFINITION as SER_REC
 
 AVAILABLE_FUNCTIONS = {
     "calculator": calculator,
@@ -10,6 +11,7 @@ AVAILABLE_FUNCTIONS = {
     "search_memory": search_memory,
     "get_weather": get_weather,
     "fetch_webpage": fetch_webpage,
+    "search_recipe" : search_recipe,
 }
 
 TOOL_DEFINITIONS = [
@@ -18,4 +20,5 @@ TOOL_DEFINITIONS = [
     MEM_DEF,
     WEATHER_DEF,
     WEB_DEF,
+    SER_REC,
 ]
