@@ -232,7 +232,6 @@ AI_Test_Helper/
 ├── .env
 ├── .gitignore
 └── app/
-    ├── Dockerfile
     ├── requirements.txt
     ├── main.py
     ├── alembic.ini
@@ -260,9 +259,9 @@ AI_Test_Helper/
     │   └── document_service.py    # PDF/DOCX/TXT → ChromaDB
     │
     ├── api/
-    │   ├── dependencies.py        # get_current_user_flexible
     │   ├── web.py                 # HTML routes (Jinja2)
     │   └── v1/
+    │       ├── dependencies.py        # get_current_user_flexible
     │       ├── router.py
     │       ├── auth.py
     │       ├── conversations.py
@@ -279,7 +278,7 @@ AI_Test_Helper/
     │       ├── weather.py
     │       ├── web_search.py
     │       ├── memory.py
-    │       ├── recipe.py
+    │       ├── search_recipes.py
     │       └── telegram.py
     │
     ├── migrations/
