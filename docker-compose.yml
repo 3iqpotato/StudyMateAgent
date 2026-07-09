@@ -41,6 +41,16 @@ services:
         - D:/docker-volumes/chromadb:/chroma/chroma
       restart:  "no"
 
+  redis:
+    image: redis:7-alpine
+    container_name: ai-test-helper-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - D:/docker-volumes/redis:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes  # запазва данните на диск
+
 #networks:
 #  ollama_network:
 #    external: true

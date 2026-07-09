@@ -59,6 +59,14 @@ async def run_agent(user_message: str, conversation_history: list, user_id: str,
         if not message.get("tool_calls"):
             final = message.get("content", "").strip()
 
+            if "<tool_call>" in final or "<function=" in final:
+                logger.warning("[Agent] Моделът върна tool call като текст — игнорирам и питам отново")
+                messages.append({
+                    "role": "user",
+                    "content": "Използвай наличните инструменти за да отговориш."
+                })
+                continue
+                
             if not final:
                 empty_responses += 1
                 logger.warning(f"[Agent] Празен отговор #{empty_responses}")

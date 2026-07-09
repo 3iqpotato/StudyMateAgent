@@ -1,30 +1,36 @@
 # Засега празна — ще се имплементира с Celery + Redis
+import logging
+
 import httpx
 from app.core.config import settings
+logger = logging.getLogger(__name__)
 
-
-async def send_telegram(message: str, user_id: str = None, **kwargs) -> str:
+async def send_telegram(
+    message: str,
+    delay_seconds: int = 0,
+    user_id: str = None,
+    **kwargs
+) -> str:
     if not settings.TELEGRAM_BOT_TOKEN or not settings.TELEGRAM_CHAT_ID:
         return "Telegram не е конфигуриран."
 
-    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
-
     try:
-        async with httpx.AsyncClient() as client:
-            res = await client.post(url, json={
-                "chat_id": settings.TELEGRAM_CHAT_ID,
-                "text": message,
-                "parse_mode": "HTML"
-            }, timeout=10)
+        from app.tasks.telegram_tasks import send_telegram_task
 
-        if res.status_code == 200:
-            return "✅ Съобщението е изпратено в Telegram."
-        else:
-            return f"❌ Грешка от Telegram: {res.text}"
+        # .apply_async() пуска задачата в Redis без да чака
+        # countdown = изчакай N секунди преди изпълнение
+        send_telegram_task.apply_async(
+            args=[message, settings.TELEGRAM_BOT_TOKEN, settings.TELEGRAM_CHAT_ID],
+            countdown=delay_seconds  # 0 = веднага, 10 = след 10 секунди
+        )
+
+        if delay_seconds > 0:
+            return f"Съобщението ще бъде изпратено в Telegram след {delay_seconds} секунди."
+        return "Съобщението е поставено на опашка за изпращане в Telegram."
 
     except Exception as e:
-        return f"❌ Не може да се свърже с Telegram: {str(e)}"
-
+        logger.error(f"Грешка при поставяне в опашка: {e}")
+        return f"Грешка: {str(e)}"
 
 TOOL_DEFINITION = {
     "type": "function",
@@ -37,6 +43,11 @@ TOOL_DEFINITION = {
                 "message": {
                     "type": "string",
                     "description": "Съобщението което да се изпрати"
+                },
+                "delay_seconds": {
+                    "type": "integer",
+                    "description": "Колко секунди да се изчака преди изпращане. По подразбиране: 0",
+                    "default": 0
                 }
             },
             "required": ["message"]
